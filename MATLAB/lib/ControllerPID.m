@@ -10,21 +10,24 @@ classdef ControllerPID < handle
         intError    % Accumulated integral of error
         output      % Most recent controller output
         dt          % Sampling time
+        sim_time    % Total simulation time
         u_min       % Minimum input saturation
         u_max       % Maximum input saturation
     end
     
     methods
-        function obj = ControllerPID(kp, ki, kd, dt)
+        function obj = ControllerPID(kp, ki, kd, dt, sim_time)
             % Constructor: set gains and sampling time, initialize state
-            if dt <= 0
+            if (dt <= 0)
                 error("Positive sampling time dt is required");
+            elseif (sim_time <= 0)
+                error("Positive simulation time sim_time is required");
             end
             obj.kp = kp;
             obj.ki = ki;
             obj.kd = kd;
             obj.dt = dt;
-            
+            obj.sim_time = sim_time;
             % Initialize error history to NaN so first derivative term is forced to zero
             obj.prevError = NaN;
             obj.intError  = 0;
