@@ -10,52 +10,48 @@ classdef ControllerPID < handle
         intError    % Accumulated integral of error
         output      % Most recent controller output
         dt          % Sampling time
-        sim_time    % Total simulation time
         u_min       % Minimum input saturation
         u_max       % Maximum input saturation
     end
     
     methods
-        function obj = ControllerPID(kp, ki, kd, dt, sim_time)
+        function obj = ControllerPID(kp, ki, kd, dt)
             % Constructor: set gains and sampling time, initialize state
             if (dt <= 0)
                 error("Positive sampling time dt is required");
-            elseif (sim_time <= 0)
-                error("Positive simulation time sim_time is required");
             end
             obj.kp = kp;
             obj.ki = ki;
             obj.kd = kd;
             obj.dt = dt;
-            obj.sim_time = sim_time;
             % Initialize error history to NaN so first derivative term is forced to zero
             obj.prevError = NaN;
             obj.intError  = 0;
             obj.output    = 0;
-            obj.u_min = Nan;
-            obj.u_max = Nan;
+            obj.u_min = NaN;
+            obj.u_max = NaN;
         end
         
-        function reset(obj)
+        function obj = reset(obj)
             % reset: clears integral and derivative history
             obj.prevError = NaN;
             obj.intError  = 0;
             obj.output    = 0;
         end
 
-        function set_output_saturation(obj, u_min, u_max)
+        function obj = set_output_saturation(obj, u_min, u_max)
             % set_input_saturation: setting the saturation of the controller output
             obj.u_min = u_min;
             obj.u_max = u_max;
         end
 
-        function u = input_saturation(obj, u)
+        function u = output_saturation(obj, u)
             % input_saturation: clamping the output to [u_min,u_max]
             if ~isnan(obj.u_min)
                 u = max(u, obj.u_min);
             end
             if ~isnan(obj.u_max)
-                u = min(u, obj.u_max);   % element‑wise min
+                u = min(u, obj.u_max);
             end
         end
         
@@ -85,10 +81,10 @@ classdef ControllerPID < handle
             end
             
             unsat = P + I + D;
-            obj.output = obj.input_saturation(obj, unsat); % Combine terms
+            obj.output = obj.output_saturation(obj, unsat);
             u = obj.output;
             
-            obj.prevError = err;    % Save error for next derivative calculation
+            obj.prevError = err;
         end
     end
 end
