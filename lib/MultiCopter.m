@@ -73,7 +73,7 @@ classdef MultiCopter < handle
             obj.ez = initCond.quat(4);
             obj.quat = [obj.e0, obj.ex, obj.ey, obj.ez]';
 
-            obj.att = get_quat2eul(initCond.quat);
+            obj.att = obj.get_quat2eul();
             obj.rol = obj.att(1);
             obj.pit = obj.att(2);
             obj.yaw = obj.att(3);
@@ -98,13 +98,14 @@ classdef MultiCopter < handle
             input = [obj.T; obj.Mx; obj.My; obj.Mz];
             % odeFunc = @(t, state) obj.ode_equations(t, state, input);
 
-            [~, state] = ode45(@(t, state) obj.ode_equations(t, state, input), tspan, initialState);
+            % [~, state] = ode45(@(t, state) obj.ode_equations(t, state, input), tspan, initialState);
+            [~, state] = ode15s(@(t, state) obj.ode_equations(t, state, input), tspan, initialState);
 
             obj.pos = state(end, 1:3)';
             obj.vel = state(end, 4:6)';
             obj.quat = state(end, 7:10)';
             obj.quat = obj.quat./norm(obj.quat);
-            obj.att = obj.get_quat2eul(obj.quat);
+            obj.att = obj.get_quat2eul();
             obj.omg = state(end, 11:13)';
             obj.set_state();
         end
@@ -131,15 +132,15 @@ classdef MultiCopter < handle
             Vel = state(4:6);
             Quat = state(7:10);
             Omg = state(11:13);
-            quatOmega = obj.get_skew_matrix(Omg);
-            rotmB2I = obj.get_rotm_body2inertial(Quat);
+            quatOmega = obj.get_skew_matrix();
+            rotmB2I = obj.get_rotm_body2inertial();
             Thrust = [0; 0; input(1)];
             Moment = [input(2); input(3); input(4);];
 
             dpos = Vel;
             dvel = [0; 0; 9.81] - rotmB2I*Thrust./obj.mass;
             dquat = quatOmega*Quat./2;
-            domg = obj.J\(-cross(Omg', (obj.J*Omg)') + Moment);
+            domg = obj.J\(-cross(Omg', (obj.J*Omg)')' + Moment);
 
             dstate = [dpos; dvel; dquat; domg];
         end
@@ -174,29 +175,29 @@ classdef MultiCopter < handle
             obj.r = obj.omg(3);
         end
 
-        function rotm = get_rotm_body2inertial(Quat)
-            w = Quat(1);
-            x = Quat(2);
-            y = Quat(3);
-            z = Quat(4);
+        function rotm = get_rotm_body2inertial(obj)
+            w = obj.quat(1);
+            x = obj.quat(2);
+            y = obj.quat(3);
+            z = obj.quat(4);
             
             rotm = [w^2 + x^2 - y^2 - z^2,          2*(x*y - w*z),           2*(x*z + w*y);...
                             2*(x*y + w*z),  w^2 - x^2 + y^2 - z^2,           2*(y*z - w*x);...
                             2*(x*z - w*y),          2*(y*z + w*x),  w^2 - x^2 - y^2 + z^2];
         end
         
-        function skew_matrix = get_skew_matrix(Omg)
-            skew_matrix = [     0, -Omg(1), -Omg(2), -Omg(3);...
-                           Omg(1),       0,  Omg(3), -Omg(2);...
-                           Omg(2), -Omg(3),       0,  Omg(1);...
-                           Omg(3),  Omg(2), -Omg(1),      0];
+        function skew_matrix = get_skew_matrix(obj)
+            skew_matrix = [         0, -obj.omg(1), -obj.omg(2), -obj.omg(3);...
+                           obj.omg(1),           0,  obj.omg(3), -obj.omg(2);...
+                           obj.omg(2), -obj.omg(3),           0,  obj.omg(1);...
+                           obj.omg(3),  obj.omg(2), -obj.omg(1),          0];
         end
 
-        function euler = get_quat2eul(Quat)
-            w = Quat(1);
-            x = Quat(2);
-            y = Quat(3);
-            z = Quat(4);
+        function euler = get_quat2eul(obj)
+            w = obj.quat(1);
+            x = obj.quat(2);
+            y = obj.quat(3);
+            z = obj.quat(4);
 
             euler = NaN([3, 1]);
             euler(1) = atan2(2*(w*x + y*z), w^2 + z^2 - x^2 - y^2);

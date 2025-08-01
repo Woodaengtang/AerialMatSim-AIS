@@ -19,6 +19,7 @@ classdef ControllerPID < handle
             % Constructor: set gains and sampling time, initialize state
             if (dt <= 0)
                 error("Positive sampling time dt is required");
+            
             end
             obj.kp = kp;
             obj.ki = ki;
@@ -81,7 +82,7 @@ classdef ControllerPID < handle
             end
             
             unsat = P + I + D;
-            obj.output = obj.output_saturation(obj, unsat);
+            obj.output = obj.output_saturation(unsat);
             u = obj.output;
             
             obj.prevError = err;
