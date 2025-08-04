@@ -98,15 +98,24 @@ classdef MultiCopter < handle
             input = [obj.T; obj.Mx; obj.My; obj.Mz];
             % odeFunc = @(t, state) obj.ode_equations(t, state, input);
 
-            % [~, state] = ode45(@(t, state) obj.ode_equations(t, state, input), tspan, initialState);
-            [~, state] = ode15s(@(t, state) obj.ode_equations(t, state, input), tspan, initialState);
+            % Define the number of steps for the Runge-Kutta method
+            numSteps = 10;
+            dtRK = obj.dt / numSteps;
+            state = initialState;
 
-            obj.pos = state(end, 1:3)';
-            obj.vel = state(end, 4:6)';
-            obj.quat = state(end, 7:10)';
-            obj.quat = obj.quat./norm(obj.quat);
+            for i = 1:numSteps
+                k1 = obj.ode_equations(0, state, input);
+                k2 = obj.ode_equations(0, state + 0.5 * dtRK * k1, input);
+                k3 = obj.ode_equations(0, state + 0.5 * dtRK * k2, input);
+                k4 = obj.ode_equations(0, state + dtRK * k3, input);
+                state = state + (dtRK / 6) * (k1 + 2*k2 + 2*k3 + k4);
+            end
+
+            obj.pos = state(1:3);
+            obj.vel = state(4:6);
+            obj.quat = normalize_quat(state(7:10));
             obj.att = obj.get_quat2eul();
-            obj.omg = state(end, 11:13)';
+            obj.omg = state(11:13);
             obj.set_state();
         end
 
@@ -130,7 +139,7 @@ classdef MultiCopter < handle
 
             % Pos = state(1:3);
             Vel = state(4:6);
-            Quat = state(7:10);
+            Quat = normalize_quat(state(7:10));
             Omg = state(11:13);
             quatOmega = obj.get_skew_matrix();
             rotmB2I = obj.get_rotm_body2inertial();
@@ -203,6 +212,10 @@ classdef MultiCopter < handle
             euler(1) = atan2(2*(w*x + y*z), w^2 + z^2 - x^2 - y^2);
             euler(2) = asin(2*(w*y - x*z));
             euler(3) = atan2(2*(w*z + x*y), w^2 + x^2 - y^2 - z^2);
+        end
+
+        function norm_quat = normalize_quat(obj, quaternion)
+            norm_quat = quaternion./norm(quaternion);
         end
     end
 end
