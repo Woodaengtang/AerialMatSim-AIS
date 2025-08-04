@@ -17,7 +17,6 @@ initInput = struct('T', 2*9.81,...
                    'My', 0.0,...
                    'Mz', 0.0);
 
-
 sim_time = 60;
 time = 0;
 freq_vel = 20;
@@ -29,7 +28,7 @@ QuadCopter = MultiCopter(initCond, initInput, inertialProperties, 1/freq_omg);
 
 [gain_vel.kp, gain_vel.ki, gain_vel.kd] = deal(1, 0.001, 0.005);
 [gain_att.kp, gain_att.ki, gain_att.kd] = deal(1, 0, 0);
-[gain_omg.kp, gain_omg.ki, gain_omg.kd] = deal(1, 0.2, 0.1);
+[gain_omg.kp, gain_omg.ki, gain_omg.kd] = deal(1, 0.2, 0);
 
 CtrlVel = ControllerPID(gain_vel.kp, gain_vel.ki, gain_vel.kd, 1/freq_vel);
 CtrlThrust = ControllerPID(gain_vel.kp, gain_vel.ki, gain_vel.kd, 1/freq_vel);
@@ -83,7 +82,10 @@ while time <= sim_time
     CommandOmgLogger.update(rate_command, Index.successive_+1, time);
     prop_command(2:4) = CtrlOmg.update(rate_command, QuadCopter.omg);
     CommandPropLogger.update(prop_command, Index.successive_+1, time);
-    [propInput.T, propInput.Mx, propInput.My, propInput.Mz] = deal(prop_command);
+    propInput.T = prop_command(1);
+    propInput.Mx = prop_command(2);
+    propInput.My = prop_command(3);
+    propInput.Mz = prop_command(4);
     QuadCopter.set_input(propInput);
     QuadCopter.update_states();
 
