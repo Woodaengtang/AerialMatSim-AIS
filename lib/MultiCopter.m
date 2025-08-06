@@ -113,7 +113,7 @@ classdef MultiCopter < handle
 
             obj.pos = state(1:3);
             obj.vel = state(4:6);
-            obj.quat = normalize_quat(state(7:10));
+            obj.quat = obj.normalize_quat(state(7:10));
             obj.att = obj.get_quat2eul();
             obj.omg = state(11:13);
             obj.set_state();
@@ -139,7 +139,7 @@ classdef MultiCopter < handle
 
             % Pos = state(1:3);
             Vel = state(4:6);
-            Quat = normalize_quat(state(7:10));
+            Quat = obj.normalize_quat(state(7:10));
             Omg = state(11:13);
             quatOmega = obj.get_skew_matrix();
             rotmB2I = obj.get_rotm_body2inertial();

@@ -1,5 +1,5 @@
 close all; clear all; clc;
-addpath("..\lib\");
+addpath("lib\");
 %% Class Setup
 inertialProperties = struct('mass', 2,...
                             'Jxx', 0.021667,...
@@ -28,7 +28,7 @@ QuadCopter = MultiCopter(initCond, initInput, inertialProperties, 1/freq_omg);
 
 [gain_vel.kp, gain_vel.ki, gain_vel.kd] = deal(1, 0.001, 0.005);
 [gain_att.kp, gain_att.ki, gain_att.kd] = deal(1, 0, 0);
-[gain_omg.kp, gain_omg.ki, gain_omg.kd] = deal(1, 0.2, 0);
+[gain_omg.kp, gain_omg.ki, gain_omg.kd] = deal(0.5, 0.2, 0);
 
 CtrlVel = ControllerPID(gain_vel.kp, gain_vel.ki, gain_vel.kd, 1/freq_vel);
 CtrlThrust = ControllerPID(gain_vel.kp, gain_vel.ki, gain_vel.kd, 1/freq_vel);
@@ -93,3 +93,13 @@ while time <= sim_time
     time = time + 1/freq_omg;
 end
 
+PropFig = figure();
+for i = 1:size(CommandPropLogger.log, 1)
+    subplot(size(CommandPropLogger.log, 1), 1, i);
+    hold on; grid on;
+    plot(CommandPropLogger.time, CommandPropLogger.log(i,:))
+end
+
+% plot(CommandPropLogger.time, CommandPropLogger.log(2,:))
+% plot(CommandPropLogger.time, CommandPropLogger.log(3,:))
+% plot(CommandPropLogger.time, CommandPropLogger.log(4,:))
