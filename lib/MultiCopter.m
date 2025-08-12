@@ -92,8 +92,6 @@ classdef MultiCopter < handle
         end
 
         function obj = update_states(obj)
-            tspan = [0, obj.dt];
-
             initialState = [obj.pos; obj.vel; obj.quat; obj.omg];
             input = [obj.T; obj.Mx; obj.My; obj.Mz];
             % odeFunc = @(t, state) obj.ode_equations(t, state, input);
