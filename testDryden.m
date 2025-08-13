@@ -47,8 +47,6 @@ plot(WindLog.time, WindLog.log(3, :));
 xlabel('Time (s)'); ylabel('w_w(m/s)');
 legend('w_w');
 
-
-
 plotCombinedParams = figure();
 plotCombinedParams.Theme = 'light';
 sgtitle('Linearly Interpolated Dryden Model Parameters');
