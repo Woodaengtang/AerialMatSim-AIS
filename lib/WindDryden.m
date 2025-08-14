@@ -123,8 +123,9 @@ classdef WindDryden < handle
                 error('Input variable euler must be a struct or a vector.');
             end
 
-            rotm_eul = eul2rotm([-rol, -pit, -yaw], 'ZYX');
-            Vb_ws = rotm_eul*obj.V_ws;                      % Convert ambient wind from inertial to body frame
+            rotm_eul_b2i = eul2rotm([rol, pit, yaw], 'XYZ');
+            rotm_eul_i2b = rotm_eul_b2i';
+            Vb_ws = rotm_eul_i2b*obj.V_ws;                  % Convert ambient wind from inertial to body frame
             obj.update_gust(height, Va);                    % Update turbulence components
             V_w = [obj.Hu; obj.Hv; obj.Hw] + Vb_ws;         % Total wind = Turbulence + Ambient wind
         end
@@ -149,6 +150,9 @@ classdef WindDryden < handle
             obj.Wv = randn(1);
             obj.Ww = randn(1);
             
+            if Va == 0
+                return;
+            end
             obj.update_Hu(Va);
             obj.update_Hv(Va);
             obj.update_Hw(Va);
@@ -183,7 +187,7 @@ classdef WindDryden < handle
             %
             % Output:
             %   - obj: The WindDryden object with updated turbulence intensity parameters (sig_u, sig_v, sig_w).
-            turb_intense = 0; % 1 indicates moderate turbulence, 0 indicates light turbulence
+            turb_intense = 1; % 1 indicates moderate turbulence, 0 indicates light turbulence
             if turb_intense
                 % Moderate turbulence
                 obj.sig_u = (obj.model_params.sig_u_m_e - obj.model_params.sig_u_m_0)/(obj.model_params.alt_e - obj.model_params.alt_0)*(height - obj.model_params.alt_0) + obj.model_params.sig_u_m_0;
@@ -226,9 +230,12 @@ classdef WindDryden < handle
             % Output:
             %   - obj: The WindDryden object with updated `obj.Hv`, `obj.Hv_prev`, `obj.Hv_pprev`, and `obj.Wv_prev` properties.
             a = Va/obj.Lv;
+            if a == 0 
+                return;
+            end
             b = a/sqrt(3);
             alpha = exp(-a*obj.T);
-
+            
             obj.Hv = 2*alpha*obj.Hv_prev - alpha^2*obj.Hv_pprev + obj.sig_v*sqrt(3*a/pi)*((obj.T*alpha + b/a^2*(1 - alpha - a*obj.T*alpha))*obj.Wv + (-obj.T*alpha + b/a^2*(alpha^2 - alpha + a*obj.T*alpha))*obj.Wv_prev);
             obj.Hv_pprev = obj.Hv_prev;
             obj.Hv_prev = obj.Hv;
@@ -247,6 +254,12 @@ classdef WindDryden < handle
             % Output:
             %   - obj: The WindDryden object with updated `obj.Hw`, `obj.Hw_prev`, `obj.Hw_pprev`, and `obj.Ww_prev` properties.
             a = Va/obj.Lw;
+            if a == 0
+                obj.Hw_pprev = 0;
+                obj.Hw_prev  = 0;
+                obj.Ww_prev  = 0;
+                return;
+            end
             b = a/sqrt(3);
             alpha = exp(-a*obj.T);
 
@@ -254,6 +267,15 @@ classdef WindDryden < handle
             obj.Hw_pprev = obj.Hw_prev;
             obj.Hw_prev = obj.Hw;
             obj.Ww_prev = obj.Ww;
+        end
+
+        function gust_vec = get_gust(obj)
+            % get_gust
+            % Returns the gust vector components (Hu, Hv, Hw) of the Dryden model.
+            % This function aggregates the turbulence wind components into a single vector,
+            % which can be used for further analysis or simulation of the aircraft's response
+            % to turbulent conditions.
+            gust_vec = [obj.Hu; obj.Hv; obj.Hw];
         end
     end
 end
