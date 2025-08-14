@@ -20,22 +20,22 @@ classdef MultiCopter < handle
         ve      % East velocity component
         vd      % Down velocity component
 
-        quat    % Quaternion representation of orientation     
+        quat    % Quaternion representation of orientation
         e0      % Scalar part of quaternion
         ex      % First component of quaternion
         ey      % Second component of quaternion
         ez      % Third component of quaternion
 
-        att     % Current attitude (roll, pitch, yaw)           
+        att     % Current attitude (roll, pitch, yaw)
         rol     % Roll angle
         pit     % Pitch angle
         yaw     % Yaw angle
-        
-        omg     % Current angular velocity                      
+
+        omg     % Current angular velocity
         p       % Roll rate
         q       % Pitch rate
         r       % Yaw rate
-        
+
         D       % Drag Coefficient
         vw      % Wind velocity in the body frame
 
@@ -68,8 +68,8 @@ classdef MultiCopter < handle
             obj.Jxz = inertialProperties.Jxz;
             obj.Jyz = inertialProperties.Jyz;
             obj.J = [obj.Jxx, obj.Jxy, obj.Jxz;...
-                     obj.Jxy, obj.Jyy, obj.Jyz;...
-                     obj.Jxz, obj.Jyz, obj.Jzz];
+                obj.Jxy, obj.Jyy, obj.Jyz;...
+                obj.Jxz, obj.Jyz, obj.Jzz];
 
             obj.pn = initCond.pos(1);
             obj.pe = initCond.pos(2);
@@ -87,7 +87,7 @@ classdef MultiCopter < handle
             obj.ez = initCond.quat(4);
             obj.quat = [obj.e0, obj.ex, obj.ey, obj.ez]';
 
-            obj.att = obj.get_quat2eul();
+            obj.att = quat2eul(obj.quat', 'XYZ')';
             obj.rol = obj.att(1);
             obj.pit = obj.att(2);
             obj.yaw = obj.att(3);
@@ -96,10 +96,10 @@ classdef MultiCopter < handle
             obj.q = initCond.omg(2);
             obj.r = initCond.omg(3);
             obj.omg = [obj.p; obj.q; obj.r];
-            
-            obj.D = [0.01,   0, 0;...
-                       0, 0.01, 0;...
-                       0,   0, 0.0001];
+
+            obj.D = [0.1,   0, 0;...
+                0, 0.1, 0;...
+                0,   0, 0.001];
             obj.vw = zeros([3, 1]);
 
             obj.T = initInput.T;
@@ -141,42 +141,31 @@ classdef MultiCopter < handle
 
             obj.pos = state(1:3);
             obj.vel = state(4:6);
-            obj.quat = obj.normalize_quat(state(7:10));
-            obj.att = obj.get_quat2eul();
+            obj.quat = state(7:10)./norm(state(7:10));
+            obj.att = quat2eul(obj.quat', 'XYZ')';
             obj.omg = state(11:13);
             obj.set_state();
         end
 
         function dstate = ode_equations(obj, state, input, wind_dist)
-            % ode_equations: Computes the time derivatives of the state variables.
-            %
-            % Inputs:
-            %   - obj: The MultiCopter object.
-            %   - ~: Time (not used, for compatibility with ODE solvers).
-            %   - state: A vector containing the current state [pos; vel; quat; omg].
-            %   - input: A vector containing the control inputs [T; Mx; My; Mz].
-            %   - wind_dist: Airspeed measured in the body frame.
-            %
-            % Output:
-            %   - dstate: A vector of the time derivatives of the state variables.
 
-            % Pos = state(1:3);
             Vel = state(4:6);
-            Quat = obj.normalize_quat(state(7:10));
+            % 수정: 정규화를 제거하고, RK4에서 넘어온 '그대로의' 쿼터니언을 사용합니다.
+            Quat = state(7:10);
             Omg = state(11:13);
 
-            % Rotation matrix from body to inertial using Quat (w, x, y, z)
+            % Rotation matrix from body to inertial using Quat
             w = Quat(1); x = Quat(2); y = Quat(3); z = Quat(4);
             rotmB2I = [w^2 + x^2 - y^2 - z^2,          2*(x*y - w*z),           2*(x*z + w*y);...
-                               2*(x*y + w*z),  w^2 - x^2 + y^2 - z^2,           2*(y*z - w*x);...
-                               2*(x*z - w*y),          2*(y*z + w*x),  w^2 - x^2 - y^2 + z^2];
+                2*(x*y + w*z),  w^2 - x^2 + y^2 - z^2,           2*(y*z - w*x);...
+                2*(x*z - w*y),          2*(y*z + w*x), w^2 - x^2 - y^2 + z^2];
 
             % Quaternion kinematic matrix using Omg = [p; q; r]
             p = Omg(1); q = Omg(2); r = Omg(3);
             quatOmega = [    0, -p, -q, -r;...
-                             p,  0,  r, -q;...
-                             q, -r,  0,  p;...
-                             r,  q, -p,  0];
+                p,  0,  r, -q;...
+                q, -r,  0,  p;...
+                r,  q, -p,  0];
 
             Thrust = [0; 0; input(1)];
             Moment = [input(2); input(3); input(4)];
@@ -184,7 +173,7 @@ classdef MultiCopter < handle
             dpos = Vel;
             dvel = [0; 0; 9.81] - rotmB2I*Thrust./obj.mass - rotmB2I*obj.D*(rotmB2I'*Vel - wind_dist);
             dquat = quatOmega*Quat./2;
-            domg = obj.J\(-cross(Omg', (obj.J*Omg)')' + Moment);
+            domg = obj.J\(Moment - cross(Omg', (obj.J*Omg)')');
 
             dstate = [dpos; dvel; dquat; domg];
         end
@@ -249,71 +238,14 @@ classdef MultiCopter < handle
             obj.vw = body_wind;
         end
 
-        function rotm = get_rotm_body2inertial(obj)
-            % get_rotm_body2inertial: Calculates the rotation matrix from body to inertial frame.
-            %
-            % Input:
-            %   - obj: The MultiCopter object.
-            %
-            % Output:
-            %   - rotm: The 3x3 rotation matrix.
-
-            w = obj.quat(1);
-            x = obj.quat(2);
-            y = obj.quat(3);
-            z = obj.quat(4);
+        function state_vec = get_state(obj)
             
-            rotm = [w^2 + x^2 - y^2 - z^2,          2*(x*y - w*z),           2*(x*z + w*y);...
-                            2*(x*y + w*z),  w^2 - x^2 + y^2 - z^2,           2*(y*z - w*x);...
-                            2*(x*z - w*y),          2*(y*z + w*x),  w^2 - x^2 - y^2 + z^2];
-        end
-        
-        function skew_matrix = get_skew_matrix(obj)
-            % get_skew_matrix: Creates the skew-symmetric matrix for quaternion kinematics.
-            %
-            % Input:
-            %   - obj: The MultiCopter object.
+            % get_state: Retrieves the current state of the multi-copter.
             %
             % Output:
-            %   - skew_matrix: The 4x4 skew-symmetric matrix.
-
-            skew_matrix = [         0, -obj.omg(1), -obj.omg(2), -obj.omg(3);...
-                           obj.omg(1),           0,  obj.omg(3), -obj.omg(2);...
-                           obj.omg(2), -obj.omg(3),           0,  obj.omg(1);...
-                           obj.omg(3),  obj.omg(2), -obj.omg(1),          0];
-        end
-
-        function euler = get_quat2eul(obj)
-            % get_quat2eul: Converts the quaternion to Euler angles (roll, pitch, yaw).
-            %
-            % Input:
-            %   - obj: The MultiCopter object.
-            %
-            % Output:
-            %   - euler: A 3x1 vector of Euler angles [roll; pitch; yaw].
-
-            w = obj.quat(1);
-            x = obj.quat(2);
-            y = obj.quat(3);
-            z = obj.quat(4);
-
-            euler = NaN([3, 1]);
-            euler(1) = atan2(2*(w*x + y*z), w^2 + z^2 - x^2 - y^2);
-            euler(2) = asin(2*(w*y - x*z));
-            euler(3) = atan2(2*(w*z + x*y), w^2 + x^2 - y^2 - z^2);
-        end
-
-        function norm_quat = normalize_quat(obj, quaternion)
-            % normalize_quat: Normalizes a quaternion.
-            %
-            % Inputs:
-            %   - obj: The MultiCopter object (not used, but standard for methods).
-            %   - quaternion: The 4x1 quaternion to normalize.
-            %
-            % Output:
-            %   - norm_quat: The normalized 4x1 quaternion.
-
-            norm_quat = quaternion./norm(quaternion);
+            %   - state_vec: A vector containing the position, velocity, 
+            %     attitude (Euler angles), and angular velocity of the multi-copter.
+            state_vec = [obj.pos; obj.vel; obj.att; obj.omg];
         end
     end
 end
