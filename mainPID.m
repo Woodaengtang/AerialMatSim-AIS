@@ -97,6 +97,7 @@ plot(StateLogger.time, StateLogger.log(1,:), 'LineWidth', 2);
 plot(CommandLogger.time, CommandLogger.log(1,:), 'LineWidth', 2);
 ylabel('North (m)');
 title('Position - North');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 2);
 hold on; grid on;
@@ -104,6 +105,7 @@ plot(StateLogger.time, StateLogger.log(2,:), 'LineWidth', 2);
 plot(CommandLogger.time, CommandLogger.log(2,:), 'LineWidth', 2);
 ylabel('East (m)');
 title('Position - East');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 3);
 hold on; grid on;
@@ -112,6 +114,7 @@ plot(CommandLogger.time, CommandLogger.log(3,:), 'LineWidth', 2);
 ylabel('Down (m)');
 xlabel('Time (s)');
 title('Position - Down');
+legend('State', 'Command', 'Location', 'best');
 
 VelPlot = figure();
 VelPlot.Theme = 'light';
@@ -121,6 +124,7 @@ plot(StateLogger.time, StateLogger.log(4,:), 'LineWidth', 2);
 plot(CommandLogger.time, CommandLogger.log(4,:), 'LineWidth', 2);
 ylabel('V_N (m/s)');
 title('Velocity - North');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 2);
 hold on; grid on;
@@ -128,6 +132,7 @@ plot(StateLogger.time, StateLogger.log(5,:), 'LineWidth', 2);
 plot(CommandLogger.time, CommandLogger.log(5,:), 'LineWidth', 2);
 ylabel('V_E (m/s)');
 title('Velocity - East');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 3);
 hold on; grid on;
@@ -136,6 +141,7 @@ plot(CommandLogger.time, CommandLogger.log(6,:), 'LineWidth', 2);
 ylabel('V_D (m/s)');
 xlabel('Time (s)');
 title('Velocity - Down');
+legend('State', 'Command', 'Location', 'best');
 
 AttPlot = figure();
 AttPlot.Theme = 'light';
@@ -145,6 +151,7 @@ plot(StateLogger.time, rad2deg(StateLogger.log(7,:)), 'LineWidth', 2);
 plot(CommandLogger.time, rad2deg(CommandLogger.log(7,:)), 'LineWidth', 2);
 ylabel('Roll (deg)');
 title('Attitude - Roll');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 2);
 hold on; grid on;
@@ -152,6 +159,7 @@ plot(StateLogger.time, rad2deg(StateLogger.log(8,:)), 'LineWidth', 2);
 plot(CommandLogger.time, rad2deg(CommandLogger.log(8,:)), 'LineWidth', 2);
 ylabel('Pitch (deg)');
 title('Attitude - Pitch');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 3);
 hold on; grid on;
@@ -160,6 +168,7 @@ plot(CommandLogger.time, rad2deg(CommandLogger.log(9,:)), 'LineWidth', 2);
 ylabel('Yaw (deg)');
 xlabel('Time (s)');
 title('Attitude - Yaw');
+legend('State', 'Command', 'Location', 'best');
 
 OmgPlot = figure();
 OmgPlot.Theme = 'light';
@@ -169,6 +178,7 @@ plot(StateLogger.time, rad2deg(StateLogger.log(10,:)), 'LineWidth', 2);
 plot(CommandLogger.time, rad2deg(CommandLogger.log(10,:)), 'LineWidth', 2);
 ylabel('P (deg/s)');
 title('Angular Rate - Roll Rate');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 2);
 hold on; grid on;
@@ -176,6 +186,7 @@ plot(StateLogger.time, rad2deg(StateLogger.log(11,:)), 'LineWidth', 2);
 plot(CommandLogger.time, rad2deg(CommandLogger.log(11,:)), 'LineWidth', 2);
 ylabel('Q (deg/s)');
 title('Angular Rate - Pitch Rate');
+legend('State', 'Command', 'Location', 'best');
 
 subplot(3, 1, 3);
 hold on; grid on;
@@ -184,60 +195,61 @@ plot(CommandLogger.time, rad2deg(CommandLogger.log(12,:) ), 'LineWidth', 2);
 ylabel('R (deg/s)');
 xlabel('Time (s)');
 title('Angular Rate - Yaw Rate');
+legend('State', 'Command', 'Location', 'best');
 
 InputPlot = figure();
 InputPlot.Theme = 'light';
 subplot(4, 1, 1);
-grid on;
+hold on; grid on;
 plot(CommandPropLogger.time, CommandPropLogger.log(1,:));
 ylabel('Thrust (N)');
 
 subplot(4, 1, 2);
-grid on;
+hold on; grid on;
 plot(CommandPropLogger.time, CommandPropLogger.log(2,:));
 ylabel('M_x (Nm)');
 
 subplot(4, 1, 3);
-grid on;
+hold on; grid on;
 plot(CommandPropLogger.time, CommandPropLogger.log(3,:));
 ylabel('M_y (Nm)');
 
 subplot(4, 1, 4);
-grid on;
+hold on; grid on;
 plot(CommandPropLogger.time, CommandPropLogger.log(4,:));
 ylabel('M_z (Nm)'); xlabel('Time (s)');
 
 WindPlot = figure();
 WindPlot.Theme = 'light';
 subplot(3, 1, 1);
-grid on;
+hold on; grid on;
 plot(WindBodyLogger.time, WindBodyLogger.log(1,:));
 ylabel('Wb_u (m/s)');
 
 subplot(3, 1, 2);
-grid on;
+hold on; grid on;
 plot(WindBodyLogger.time, WindBodyLogger.log(2,:));
 ylabel('Wb_v (m/s)');
 
 subplot(3, 1, 3);
-grid on;
+hold on; grid on;
 plot(WindBodyLogger.time, WindBodyLogger.log(3,:));
 ylabel('Wb_w (m/s)'); xlabel('Time (s)');
 
 GustPlot = figure();
 GustPlot.Theme = 'light';
 subplot(3, 1, 1);
-grid on;
+hold on; grid on;
 plot(WindGustLogger.time, WindGustLogger.log(1,:));
 ylabel('Wb_u (m/s)');
 
 subplot(3, 1, 2);
-grid on;
+hold on; grid on;
 plot(WindGustLogger.time, WindGustLogger.log(2,:));
 ylabel('Wb_v (m/s)');
 
 subplot(3, 1, 3);
-grid on;
+hold on; grid on;
 plot(WindGustLogger.time, WindGustLogger.log(3,:));
 ylabel('Wb_w (m/s)'); xlabel('Time (s)');
 

@@ -50,28 +50,42 @@ legend('w_w');
 plotCombinedParams = figure();
 plotCombinedParams.Theme = 'light';
 sgtitle('Linearly Interpolated Dryden Model Parameters');
-subplot(6, 1, 1);
+
+% First column for wave length L
+subplot(3, 2, 1);
 grid on; hold on;
 plot(height, Dryden.model_params.L_u_0 + grad_L_u * height, 'DisplayName', 'L_u');
 ylabel('L_u (m)');
-subplot(6, 1, 2);
+legend('show');
+
+subplot(3, 2, 3);
 grid on; hold on;
 plot(height, Dryden.model_params.L_v_0 + grad_L_v * height, 'DisplayName', 'L_v');
 ylabel('L_v (m)');
-subplot(6, 1, 3);
+legend('show');
+
+subplot(3, 2, 5);
 grid on; hold on;
 plot(height, Dryden.model_params.L_w_0 + grad_L_w * height, 'DisplayName', 'L_w');
-ylabel('L_w (m)');
-subplot(6, 1, 4);
+ylabel('L_w (m)'); xlabel('Height (m)');
+legend('show');
+
+% Second column for turbulence intensity sigma
+subplot(3, 2, 2);
 grid on; hold on;
-plot(height, Dryden.model_params.sig_u_m_0 + grad_sig_m_u * height, 'DisplayName', 'sig_u_l');
+plot(height, Dryden.model_params.sig_u_m_0 + grad_sig_m_u * height, 'DisplayName', '\sigma_u');
 ylabel('\sigma_u (m/s)');
-subplot(6, 1, 5);
+legend('show');
+
+subplot(3, 2, 4);
 grid on; hold on;
-plot(height, Dryden.model_params.sig_v_m_0 + grad_sig_m_v * height, 'DisplayName', 'sig_v_l');
+plot(height, Dryden.model_params.sig_v_m_0 + grad_sig_m_v * height, 'DisplayName', '\sigma_v');
 ylabel('\sigma_v (m/s)');
-subplot(6, 1, 6);
+legend('show');
+
+subplot(3, 2, 6);
 grid on; hold on;
-plot(height, Dryden.model_params.sig_w_m_0 + grad_sig_m_w * height, 'DisplayName', 'sig_w_l');
+plot(height, Dryden.model_params.sig_w_m_0 + grad_sig_m_w * height, 'DisplayName', '\sigma_w');
 ylabel('\sigma_w (m/s)');
 xlabel('Height (m)');
+legend('show');
