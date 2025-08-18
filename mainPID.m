@@ -1,4 +1,5 @@
 close all; clear all; clc;
+rng(0);
 addpath("lib\");
 
 %% Simulation Parameters
@@ -14,25 +15,44 @@ v_max = 3.0;                  % Max commanded velocity per axis (m/s)
 %% Class Setup
 % Inertial Properties for the Multicopter
 inertialProperties = struct('mass', 2, 'Jxx', 0.021667, 'Jyy', 0.021667, 'Jzz', 0.04, 'Jxy', 0.0, 'Jxz', 0.0, 'Jyz', 0.0);
+Gamma_0 = [5.5, 0, 0;...
+            0, 2.5, 0;...
+            0, 0, .1];
+% Gamma_1 = [10, 0, 0;...
+%             0, 1, 0;...
+%             0, 0, 10];
+Gamma_1 = Gamma_0;
+Gamma_1(3, 3) = Gamma_1(3, 3)/5;
+% Gamma_1(3, 3) = Gamma_1(3, 3)*10;
+% Gamma_2 = [10, 0, 0;...
+%             0, 1, 0;...
+%             0, 0, 10];
+Gamma_2 = Gamma_1;
+Gamma_2(3, 3) = Gamma_2(3, 3)/5;
+
+dobProperties = struct('gamma_0', Gamma_0, 'gamma_1', Gamma_1, 'gamma_2', Gamma_2, 'dt', dt);
 
 % Initial Conditions
 initCond = struct('pos', [0; 0; -10], 'vel', [0; 0; 0], 'quat', [1; 0; 0; 0], 'omg', [0; 0; 0]);
 initInput = struct('T', inertialProperties.mass * 9.81, 'Mx', 0.0, 'My', 0.0, 'Mz', 0.0);
 
-% Instantiate the Multicopter
+% Multicopter
 QuadCopter = MultiCopter(initCond, initInput, inertialProperties, dt);
 
 % PID Gains for the SuccessivePID Controller
 GainsPID = struct('vel_kp', 10, 'vel_ki', 0, 'vel_kd', 0.1, ...
-                  'att_kp', 1.0, 'att_ki', 0, 'att_kd', 0, ...
+                  'att_kp', 1, 'att_ki', 0, 'att_kd', 0, ...
                   'omg_kp', 1, 'omg_ki', 0, 'omg_kd', 0);
 
-% Instantiate the SuccessivePID Controller
+% SuccessivePID Controller
 Controller = SuccessivePID(dt, GainsPID);
 
 % Wind Model (Dryden)
 ambient_wind = [3; 0; 0]; % Ambient wind conditions
 Dryden = WindDryden(dt, ambient_wind);
+
+% Disturbance observer
+Dob = DOB2(dobProperties);
 
 %% Logging Setup
 % Pre-allocate space for loggers for efficiency
@@ -42,6 +62,7 @@ CommandLogger = Logger(12, num_steps);
 CommandPropLogger = Logger(4, num_steps);
 WindBodyLogger = Logger(3, num_steps);
 WindGustLogger = Logger(3, num_steps);
+DobLogger = Logger(3, num_steps);
 
 %% Simulation Loop
 time = 0;
@@ -73,7 +94,9 @@ while time <= sim_time && norm(ego_goal_point - QuadCopter.pos) >= 1
     command_vec = [ego_goal_point; Controller.get_command()];
     CommandLogger.update(command_vec, step, time);
     QuadCopter.update_states();
-    StateLogger.update(QuadCopter.get_state(), step, time);
+    StateLogger.update(QuadCopter.get_state_eul(), step, time);
+    Dob.update_dist_estimate(QuadCopter.get_state_quat(), prop_command, QuadCopter);
+    DobLogger.update(Dob.d_hat, step, time);
     time = time + dt;
 end
 
@@ -223,18 +246,24 @@ WindPlot = figure();
 WindPlot.Theme = 'light';
 subplot(3, 1, 1);
 hold on; grid on;
-plot(WindBodyLogger.time, WindBodyLogger.log(1,:));
+plot(WindBodyLogger.time, WindBodyLogger.log(1,:), 'DisplayName', 'w_u');
+plot(DobLogger.time, DobLogger.log(1, :), 'DisplayName', 'Est w_u');
 ylabel('Wb_u (m/s)');
+legend;
 
 subplot(3, 1, 2);
 hold on; grid on;
-plot(WindBodyLogger.time, WindBodyLogger.log(2,:));
+plot(WindBodyLogger.time, WindBodyLogger.log(2,:), 'DisplayName', 'w_v');
+plot(DobLogger.time, DobLogger.log(2, :), 'DisplayName', 'Est w_v');
 ylabel('Wb_v (m/s)');
+legend;
 
 subplot(3, 1, 3);
 hold on; grid on;
-plot(WindBodyLogger.time, WindBodyLogger.log(3,:));
+plot(WindBodyLogger.time, WindBodyLogger.log(3,:), 'DisplayName', 'w_w');
+plot(DobLogger.time, DobLogger.log(3, :), 'DisplayName', 'Est w_w');
 ylabel('Wb_w (m/s)'); xlabel('Time (s)');
+legend;
 
 GustPlot = figure();
 GustPlot.Theme = 'light';
