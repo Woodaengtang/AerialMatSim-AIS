@@ -238,14 +238,24 @@ classdef MultiCopter < handle
             obj.vw = body_wind;
         end
 
-        function state_vec = get_state(obj)
+        function state_vec = get_state_eul(obj)
             
-            % get_state: Retrieves the current state of the multi-copter.
+            % get_state_eul: Retrieves the current state of the multi-copter.
             %
             % Output:
             %   - state_vec: A vector containing the position, velocity, 
             %     attitude (Euler angles), and angular velocity of the multi-copter.
             state_vec = [obj.pos; obj.vel; obj.att; obj.omg];
+        end
+        
+        function state_vec = get_state_quat(obj)
+            % get_state_quat: Retrieves the current state of the multi-copter.
+            %
+            % Output:
+            %   - state_vec: A vector containing the position, velocity, 
+            %     attitude (quaternion), and angular velocity of the multi-copter.
+
+            state_vec = [obj.pos; obj.vel; obj.quat; obj.omg];
         end
     end
 end
