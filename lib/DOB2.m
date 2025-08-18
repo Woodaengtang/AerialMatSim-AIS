@@ -108,15 +108,17 @@ classdef DOB2 < handle
             Omg = state(11:13);
 
             % Quaternion to angular velocity transformation matrix
-            quatOmega = [        0,  -Omg(1), -Omg(2), -Omg(3);...
-                         Omg(1),        0,  Omg(3), -Omg(2);...
-                         Omg(2), -Omg(3),        0,  Omg(1);...
-                         Omg(3),  Omg(2), -Omg(1),        0];
+            p = Omg(1); q = Omg(2); r = Omg(3);
+            quatOmega = [    0, -p, -q, -r;...
+                p,  0,  r, -q;...
+                q, -r,  0,  p;...
+                r,  q, -p,  0];
 
             % Rotation matrix from Body frame to Inertial frame
-            rotmB2I =[Quat(1)^2 + Quat(2)^2 - Quat(3)^2 - Quat(4)^2,        2*(Quat(2)*Quat(3) - Quat(1)*Quat(4)),          2*(Quat(2)*Quat(4) + Quat(1)*Quat(3));...
-                      2*(Quat(2)*Quat(3) + Quat(1)*Quat(4)),  Quat(1)^2 - Quat(2)^2 + Quat(3)^2 - Quat(4)^2,          2*(Quat(3)*Quat(4) - Quat(1)*Quat(2));...
-                      2*(Quat(2)*Quat(4) - Quat(1)*Quat(3)),        2*(Quat(3)*Quat(4) + Quat(1)*Quat(2)),  Quat(1)^2 - Quat(2)^2 - Quat(3)^2 + Quat(4)^2];
+            w = Quat(1); x = Quat(2); y = Quat(3); z = Quat(4);
+            rotmB2I = [w^2 + x^2 - y^2 - z^2,          2*(x*y - w*z),           2*(x*z + w*y);...
+                2*(x*y + w*z),  w^2 - x^2 + y^2 - z^2,           2*(y*z - w*x);...
+                2*(x*z - w*y),          2*(y*z + w*x), w^2 - x^2 - y^2 + z^2];
 
             Thrust = [0; 0; input(1)];                  % Thrust is along the z-axis in body frame
             Moment = [input(2); input(3); input(4);];   % Moments about body x, y, z axes
@@ -125,19 +127,19 @@ classdef DOB2 < handle
             % Here, it's assumed disturbance primarily affects velocity (acceleration)
             % and potentially angular velocity. The drag term is included here.
             obj.F = [zeros([3, 3]);... 
-                     -rotmB2I*D;...    
+                     rotmB2I*D;...    
                      zeros([7, 3])];   
             % Note: The disturbance 'd' (which 'd_hat' estimates) is implicitly
             % assumed to be a 3-element vector related to forces/accelerations.
             % The exact physical meaning of 'd' depends on how 'F' is structured.
 
-            obj.pseudo_F = pinv(obj.F); % Pseudo-inverse of F, used for observer gain
+            obj.pseudo_F = (obj.F'*obj.F)\obj.F';
 
             % Nominal system dynamics (f(x, u, t)) without disturbance
             dpos = Vel;                                                             % Derivative of position is velocity
             dvel = [0; 0; 9.81] - rotmB2I*Thrust./mass - rotmB2I*D*rotmB2I'*Vel;    % Acceleration (gravity, thrust, drag)
             dquat = quatOmega*Quat./2;                                              % Derivative of quaternion
-            domg = J\(-cross(Omg', (J*Omg)')' + Moment);                            % Derivative of angular velocity (Euler's equations)
+            domg = J\(Moment - cross(Omg', (J*Omg)')');                             % Derivative of angular velocity (Euler's equations)
 
             % Estimated system output (f(x,u,t) + F*d_hat)
             % This is the system dynamics predicted by the model plus the effect
