@@ -19,5 +19,10 @@ classdef Logger < handle
             obj.log(:, idx) = data;
             obj.time(idx) = time;
         end
+
+        function obj = remove_nan(obj)
+            obj.log = obj.log(:, all(~isnan(obj.log), 1));
+            obj.time = obj.time(:, all(~isnan(obj.time), 1));
+        end
     end
 end
