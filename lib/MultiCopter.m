@@ -111,13 +111,13 @@ classdef MultiCopter < handle
         end
 
         function obj = update_states(obj)
-            % update_states: Updates the multi-copter's states over one time step.
+            % update_states: Updates the multi-copter's states over one time step using the Runge-Kutta method.
             %
             % Input:
-            %   - obj: The MultiCopter object.
+            %   - obj: The MultiCopter object containing current states and inputs.
             %
             % Output:
-            %   - obj: The MultiCopter object with updated states.
+            %   - obj: The updated MultiCopter object with new states after the time step.
 
             initialState = [obj.pos; obj.vel; obj.quat; obj.omg];
             input = [obj.T; obj.Mx; obj.My; obj.Mz];
@@ -148,24 +148,34 @@ classdef MultiCopter < handle
         end
 
         function dstate = ode_equations(obj, state, input, wind_dist)
+            % ode_equations: Computes the time derivatives of the multi-copter's state.
+            %
+            % Inputs:
+            %   - obj: The MultiCopter object.
+            %   - state: A vector containing the current state of the multi-copter, 
+            %             including position, velocity, orientation (quaternion), 
+            %             and angular velocity.
+            %   - input: A vector containing the control inputs, including thrust 
+            %            and moments (T, Mx, My, Mz).
+            %   - wind_dist: A vector representing the wind disturbance in the body frame.
+            %
+            % Output:
+            %   - dstate: A vector containing the derivatives of the state variables, 
+            %              including the rate of change of position, velocity, 
+            %              orientation, and angular velocity.
 
             Vel = state(4:6);
-            % 수정: 정규화를 제거하고, RK4에서 넘어온 '그대로의' 쿼터니언을 사용합니다.
             Quat = state(7:10);
             Omg = state(11:13);
 
-            % Rotation matrix from body to inertial using Quat
-            w = Quat(1); x = Quat(2); y = Quat(3); z = Quat(4);
-            rotmB2I = [w^2 + x^2 - y^2 - z^2,          2*(x*y - w*z),           2*(x*z + w*y);...
-                2*(x*y + w*z),  w^2 - x^2 + y^2 - z^2,           2*(y*z - w*x);...
-                2*(x*z - w*y),          2*(y*z + w*x), w^2 - x^2 - y^2 + z^2];
-
-            % Quaternion kinematic matrix using Omg = [p; q; r]
-            p = Omg(1); q = Omg(2); r = Omg(3);
-            quatOmega = [    0, -p, -q, -r;...
-                p,  0,  r, -q;...
-                q, -r,  0,  p;...
-                r,  q, -p,  0];
+            % Calculate the derivatives of the state vector based on the current state and inputs
+            rotmB2I = quat2rotm(Quat');
+            % Quaternion kinematic matrix using angular velocity Omg = [p; q; r]
+            omgp = Omg(1); omgq = Omg(2); omgr = Omg(3);
+            quatOmega = [    0, -omgp, -omgq, -omgr;...
+                omgp,  0,  omgr, -omgq;...
+                omgq, -omgr,  0,  omgp;...
+                omgr,  omgq, -omgp,  0];
 
             Thrust = [0; 0; input(1)];
             Moment = [input(2); input(3); input(4)];
@@ -179,14 +189,14 @@ classdef MultiCopter < handle
         end
 
         function obj = set_input(obj, input)
-            % set_input: Sets the control inputs for the multi-copter.
+            % set_input: Updates the control inputs for the multi-copter.
             %
             % Inputs:
             %   - obj: The MultiCopter object.
-            %   - input: Structure with control inputs (T, Mx, My, Mz).
+            %   - input: Structure containing the thrust and moments (T, Mx, My, Mz).
             %
             % Output:
-            %   - obj: The MultiCopter object with updated inputs.
+            %   - obj: The MultiCopter object with the new control inputs.
 
             obj.T = input.T;
             obj.Mx = input.Mx;
@@ -195,7 +205,9 @@ classdef MultiCopter < handle
         end
 
         function obj = set_state(obj)
-            % set_state: Updates individual state properties from state vectors.
+            % set_state: Updates the individual state properties of the MultiCopter 
+            % from the state vectors representing position, velocity, orientation, 
+            % and angular velocity.
             %
             % Input:
             %   - obj: The MultiCopter object.
@@ -226,25 +238,24 @@ classdef MultiCopter < handle
         end
 
         function obj = set_body_wind(obj, body_wind)
-            % set_body_wind: Sets the wind velocity in the body frame.
+            % set_body_wind: Updates the wind velocity in the body frame of the multi-copter.
             %
             % Inputs:
             %   - obj: The MultiCopter object.
-            %   - body_wind: The wind velocity vector in the body frame.
+            %   - body_wind: A vector representing the wind velocity in the body frame.
             %
             % Output:
-            %   - obj: The MultiCopter object with updated wind velocity.
+            %   - obj: The MultiCopter object with the updated wind velocity.
 
             obj.vw = body_wind;
         end
 
         function state_vec = get_state_eul(obj)
-            
             % get_state_eul: Retrieves the current state of the multi-copter.
             %
             % Output:
             %   - state_vec: A vector containing the position, velocity, 
-            %     attitude (Euler angles), and angular velocity of the multi-copter.
+            %     orientation (Euler angles), and angular velocity of the multi-copter.
             state_vec = [obj.pos; obj.vel; obj.att; obj.omg];
         end
         
@@ -253,7 +264,7 @@ classdef MultiCopter < handle
             %
             % Output:
             %   - state_vec: A vector containing the position, velocity, 
-            %     attitude (quaternion), and angular velocity of the multi-copter.
+            %     orientation (quaternion), and angular velocity of the multi-copter.
 
             state_vec = [obj.pos; obj.vel; obj.quat; obj.omg];
         end
