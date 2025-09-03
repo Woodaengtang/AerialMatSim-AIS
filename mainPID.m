@@ -15,22 +15,14 @@ v_max = 3.0;                  % Max commanded velocity per axis (m/s)
 %% Class Setup
 % Inertial Properties for the Multicopter
 inertialProperties = struct('mass', 2, 'Jxx', 0.021667, 'Jyy', 0.021667, 'Jzz', 0.04, 'Jxy', 0.0, 'Jxz', 0.0, 'Jyz', 0.0);
-Gamma_0 = [5.5, 0, 0;...
-            0, 2.5, 0;...
-            0, 0, .1];
-% Gamma_1 = [10, 0, 0;...
-%             0, 1, 0;...
-%             0, 0, 10];
-Gamma_1 = Gamma_0;
-Gamma_1(3, 3) = Gamma_1(3, 3)/5;
-% Gamma_1(3, 3) = Gamma_1(3, 3)*10;
-% Gamma_2 = [10, 0, 0;...
-%             0, 1, 0;...
-%             0, 0, 10];
-Gamma_2 = Gamma_1;
-Gamma_2(3, 3) = Gamma_2(3, 3)/5;
-
-dobProperties = struct('gamma_0', Gamma_0, 'gamma_1', Gamma_1, 'gamma_2', Gamma_2, 'dt', dt);
+Gamma_0 = [4.5, 0, 0;...
+            0, 3, 0;...
+            0, 0, 3];
+Gamma_1 = 0.1.*Gamma_0;
+% Gamma_1(3, 3) = 0;
+dobGainK = 1500*ones([13, 1]);
+dobGainK(6) = dobGainK(6)*1.2;
+dobProperties = struct('gamma_0', Gamma_0, 'gamma_1', Gamma_1, 'K', diag(dobGainK), 'dt', dt);
 
 % Initial Conditions
 initCond = struct('pos', [0; 0; -10], 'vel', [0; 0; 0], 'quat', [1; 0; 0; 0], 'omg', [0; 0; 0]);
@@ -52,7 +44,7 @@ ambient_wind = [3; 0; 0]; % Ambient wind conditions
 Dryden = WindDryden(dt, ambient_wind);
 
 % Disturbance observer
-Dob = DOB2(dobProperties);
+Dob = DOB2(dobProperties, initCond);
 
 %% Logging Setup
 % Pre-allocate space for loggers for efficiency
@@ -60,8 +52,9 @@ num_steps = sim_time * freq_omg + 1;
 StateLogger = Logger(12, num_steps);
 CommandLogger = Logger(12, num_steps);
 CommandPropLogger = Logger(4, num_steps);
-WindBodyLogger = Logger(3, num_steps);
+DisturbanceLogger = Logger(3, num_steps);
 WindGustLogger = Logger(3, num_steps);
+DobStateLogger = Logger(13, num_steps);
 DobLogger = Logger(3, num_steps);
 
 %% Simulation Loop
@@ -76,29 +69,41 @@ while time <= sim_time && norm(ego_goal_point - QuadCopter.pos) >= 1
     Va = norm(QuadCopter.vel - (ambient_wind + Dryden.get_gust()));
     Wb = Dryden.update_wind(height, Va, QuadCopter.att);
     QuadCopter.set_body_wind(Wb);
-    WindBodyLogger.update(Wb, step, time);
-    WindGustLogger.update(Dryden.get_gust(), step, time);
 
     pos_err = ego_goal_point - QuadCopter.pos;
     vel_command = k_nav * pos_err;
     vel_command = v_max.*vel_command./norm(vel_command);
-    
-    full_state = [QuadCopter.pos; QuadCopter.vel; QuadCopter.quat; QuadCopter.omg];
-    prop_command = Controller.update_PID(full_state, vel_command);
+
+    prop_command = Controller.update_PID(QuadCopter.get_state_quat(), vel_command);
     propInput.T = prop_command(1);
     propInput.Mx = prop_command(2);
     propInput.My = prop_command(3);
     propInput.Mz = prop_command(4);
-    QuadCopter.set_input(propInput);
-    CommandPropLogger.update(prop_command, step, time);
+    QuadCopter.set_input(propInput);    
     command_vec = [ego_goal_point; Controller.get_command()];
-    CommandLogger.update(command_vec, step, time);
+    
     QuadCopter.update_states();
-    StateLogger.update(QuadCopter.get_state_eul(), step, time);
     Dob.update_dist_estimate(QuadCopter.get_state_quat(), prop_command, QuadCopter);
+    
+    StateLogger.update(QuadCopter.get_state_eul(), step, time);
+    CommandLogger.update(command_vec, step, time);
+    CommandPropLogger.update(prop_command, step, time);
+    DisturbanceLogger.update(quat2rotm(QuadCopter.quat')*QuadCopter.D*Wb, step, time);
+    WindGustLogger.update(Dryden.get_gust(), step, time);
+    DobStateLogger.update(Dob.get_state(), step, time);
     DobLogger.update(Dob.d_hat, step, time);
+    
     time = time + dt;
-end
+end 
+
+% Remove NaN values from loggers and save the cleaned data
+StateLogger.remove_nan();
+DobStateLogger.remove_nan();
+CommandLogger.remove_nan();
+CommandPropLogger.remove_nan();
+DisturbanceLogger.remove_nan();
+WindGustLogger.remove_nan();
+DobLogger.remove_nan();
 
 %% Post-Simulation Analysis & Plotting
 
@@ -242,43 +247,165 @@ hold on; grid on;
 plot(CommandPropLogger.time, CommandPropLogger.log(4,:));
 ylabel('M_z (Nm)'); xlabel('Time (s)');
 
+wind_width = 1.5;
 WindPlot = figure();
 WindPlot.Theme = 'light';
 subplot(3, 1, 1);
 hold on; grid on;
-plot(WindBodyLogger.time, WindBodyLogger.log(1,:), 'DisplayName', 'w_u');
-plot(DobLogger.time, DobLogger.log(1, :), 'DisplayName', 'Est w_u');
-ylabel('Wb_u (m/s)');
-legend;
+plot(DisturbanceLogger.time, DisturbanceLogger.log(1,:), 'DisplayName', 'Wind Dist', 'LineWidth', wind_width);
+plot(DobLogger.time, DobLogger.log(1, :), 'DisplayName', 'Est Wind Dist', 'LineWidth', wind_width);
+ylabel('$Wb_u (m/s^2)$', 'Interpreter', 'latex');
+legend('Location','southeast');
 
 subplot(3, 1, 2);
 hold on; grid on;
-plot(WindBodyLogger.time, WindBodyLogger.log(2,:), 'DisplayName', 'w_v');
-plot(DobLogger.time, DobLogger.log(2, :), 'DisplayName', 'Est w_v');
-ylabel('Wb_v (m/s)');
-legend;
+plot(DisturbanceLogger.time, DisturbanceLogger.log(2,:), 'LineWidth', wind_width);
+plot(DobLogger.time, DobLogger.log(2, :), 'LineWidth', wind_width);
+ylabel('$Wb_v (m/s^2)$', 'Interpreter', 'latex');
 
 subplot(3, 1, 3);
 hold on; grid on;
-plot(WindBodyLogger.time, WindBodyLogger.log(3,:), 'DisplayName', 'w_w');
-plot(DobLogger.time, DobLogger.log(3, :), 'DisplayName', 'Est w_w');
-ylabel('Wb_w (m/s)'); xlabel('Time (s)');
-legend;
+plot(DisturbanceLogger.time, DisturbanceLogger.log(3,:), 'LineWidth', wind_width);
+plot(DobLogger.time, DobLogger.log(3, :), 'LineWidth', wind_width);
+ylabel('$Wb_w (m/s^2)$', 'Interpreter', 'latex'); xlabel('time (s)');
 
-GustPlot = figure();
-GustPlot.Theme = 'light';
-subplot(3, 1, 1);
+line_width = 1.5;
+DobEstPosPlot = figure();
+DobEstPosPlot.Theme = 'light';
+subplot(3, 2, 1);
 hold on; grid on;
-plot(WindGustLogger.time, WindGustLogger.log(1,:));
-ylabel('Wb_u (m/s)');
+plot(StateLogger.time, StateLogger.log(1, :), 'DisplayName', 'MC state', 'LineWidth', line_width);
+plot(DobStateLogger.time, DobStateLogger.log(1, :), 'DisplayName', 'DOB est', 'LineWidth', line_width);
+ylabel('$p_n$ (m)', 'Interpreter', 'latex'); legend;
+subtitle('Position');
 
-subplot(3, 1, 2);
+subplot(3, 2, 2);
 hold on; grid on;
-plot(WindGustLogger.time, WindGustLogger.log(2,:));
-ylabel('Wb_v (m/s)');
+plot(StateLogger.time, StateLogger.log(1, :) - DobStateLogger.log(1, :), 'LineWidth', line_width);
+subtitle('Position Error');
 
-subplot(3, 1, 3);
+subplot(3, 2, 3);
 hold on; grid on;
-plot(WindGustLogger.time, WindGustLogger.log(3,:));
-ylabel('Wb_w (m/s)'); xlabel('Time (s)');
+plot(StateLogger.time, StateLogger.log(2, :), 'LineWidth', line_width);
+plot(DobStateLogger.time, DobStateLogger.log(2, :), 'LineWidth', line_width);
+ylabel('$p_e$ (m)', 'Interpreter', 'latex');
+
+subplot(3, 2, 4);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(2, :) - DobStateLogger.log(2, :), 'LineWidth', line_width);
+
+subplot(3, 2, 5);
+hold on; grid on;
+plot(DobStateLogger.time, DobStateLogger.log(3, :), 'LineWidth', line_width);
+plot(DobStateLogger.time, DobStateLogger.log(3, :), 'LineWidth', line_width);
+ylabel('$p_d$ (m)', 'Interpreter', 'latex'); xlabel('time (s)');
+
+subplot(3, 2, 6);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(3, :) - DobStateLogger.log(3, :), 'LineWidth', line_width);
+xlabel('time (s)');
+
+DobEstVelPlot = figure();
+DobEstVelPlot.Theme = 'light';
+subplot(3, 2, 1);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(4, :), 'DisplayName', 'MC state', 'LineWidth', line_width);
+plot(DobStateLogger.time, DobStateLogger.log(4, :), 'DisplayName', 'DOB est', 'LineWidth', line_width);
+ylabel('$v_n$ (m/s)', 'Interpreter', 'latex'); legend;
+subtitle('Velocity');
+
+subplot(3, 2, 2);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(4, :) - DobStateLogger.log(4, :), 'LineWidth', line_width);
+subtitle('Velocity Error');
+
+subplot(3, 2, 3);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(5, :), 'LineWidth', line_width);
+plot(DobStateLogger.time, DobStateLogger.log(5, :), 'LineWidth', line_width);
+ylabel('$v_e$ (m/s)', 'Interpreter', 'latex');
+
+subplot(3, 2, 4);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(5, :) - DobStateLogger.log(5, :), 'LineWidth', line_width);
+
+subplot(3, 2, 5);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(6, :), 'LineWidth', line_width);
+plot(DobStateLogger.time, DobStateLogger.log(6, :), 'LineWidth', line_width);
+ylabel('$v_d$ (m/s)', 'Interpreter', 'latex'); xlabel('time (s)');
+
+subplot(3, 2, 6);
+hold on; grid on;
+plot(StateLogger.time, StateLogger.log(6, :) - DobStateLogger.log(6, :), 'LineWidth', line_width);
+xlabel('time (s)');
+
+DobEstAttPlot = figure();
+DobEstAttPlot.Theme = 'light';
+DobEul = quat2eul(DobStateLogger.log(7:10, :)', 'XYZ')';
+subplot(3, 2, 1);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(7, :)), 'LineWidth', line_width);
+plot(DobStateLogger.time, rad2deg(DobEul(1, :)), 'LineWidth', line_width);
+ylabel('$\phi$ (deg)', 'Interpreter', 'latex'); subtitle('Attitude');
+
+subplot(3, 2, 2);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(7, :) - DobEul(1, :)), 'LineWidth', line_width);
+subtitle('Attitude Error');
+
+subplot(3, 2, 3);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(8, :)), 'LineWidth', line_width);
+plot(DobStateLogger.time, rad2deg(DobEul(2, :)), 'LineWidth', line_width);
+ylabel('$\theta$ (deg)', 'Interpreter', 'latex');
+
+subplot(3, 2, 4);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(8, :) - DobEul(2, :)), 'LineWidth', line_width);
+
+subplot(3, 2, 5);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(9, :)), 'LineWidth', line_width);
+plot(DobStateLogger.time, rad2deg(DobEul(3, :)), 'LineWidth', line_width);
+ylabel('$\psi$ (deg)', 'Interpreter', 'latex'); xlabel('time (s)');
+
+subplot(3, 2, 6);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(9, :) - DobEul(3, :)), 'LineWidth', line_width);
+xlabel('time (s)');
+
+DobEstOmgPlot = figure();
+DobEstOmgPlot.Theme = 'light';
+subplot(3, 2, 1);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(10, :)), 'LineWidth', line_width);
+plot(DobStateLogger.time, rad2deg(DobStateLogger.log(11, :)), 'LineWidth', line_width);
+ylabel('p (deg/s)'); subtitle('Angular Rate');
+
+subplot(3, 2, 2);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(10, :) - DobStateLogger.log(11, :)), 'LineWidth', line_width);
+subtitle('Angular Rate Error');
+
+subplot(3, 2, 3);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(11, :)), 'LineWidth', line_width);
+plot(DobStateLogger.time, rad2deg(DobStateLogger.log(12, :)), 'LineWidth', line_width);
+ylabel('q (deg/s)');
+
+subplot(3, 2, 4);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(11, :) - DobStateLogger.log(12, :)), 'LineWidth', line_width);
+
+subplot(3, 2, 5);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(12, :)), 'LineWidth', line_width);
+plot(DobStateLogger.time, rad2deg(DobStateLogger.log(13, :)), 'LineWidth', line_width);
+ylabel('r (deg/s)'); xlabel('time (s)');
+
+subplot(3, 2, 6);
+hold on; grid on;
+plot(StateLogger.time, rad2deg(StateLogger.log(12, :) - DobStateLogger.log(13, :)), 'LineWidth', line_width);
+xlabel('time (s)');
 
