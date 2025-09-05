@@ -172,8 +172,7 @@ classdef DOB2 < handle
             obj.x_hat = obj.x_hat + obj.dt * obj.x_hat_dot;
             obj.x_hat(7:10) = obj.x_hat(7:10)./norm(obj.x_hat(7:10));
         end
-
-        % function obj = update_Dist_i(obj, state)
+        
         function obj = update_Dist_i(obj)
             % update_Dist_i: Calculates intermediate disturba   nce estimates (Dist_0, Dist_1)
             % based on the difference between the actual system state (transformed by pseudo_F)
@@ -190,7 +189,6 @@ classdef DOB2 < handle
             obj.Dist_0 = obj.pseudo_F*obj.x_hat - obj.z;
             obj.Dist_1 = obj.Dist_1 + obj.Dist_0*obj.dt;
         end
-
 
         function state_vec = get_state(obj)
             % get_state_quat: Retrieves the estimated state of the multi-copter.
